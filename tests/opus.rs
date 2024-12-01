@@ -158,4 +158,13 @@ fn should_verify_encoder_building() {
     assert_eq!(value, FrameDuration::Size10);
 
     encoder.reset().expect("To reset");
+
+    #[cfg(feature = "dred")]
+    {
+        let value = encoder.get_dred_duration().expect("get default DRED");
+        assert_eq!(value, 0);
+        encoder.set_dred_duration(4).expect("set DRED");
+        let value = encoder.get_dred_duration().expect("set DRED duration");
+        assert_eq!(value, 4);
+    }
 }

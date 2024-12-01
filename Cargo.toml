@@ -11,5 +11,9 @@ keywords = ["opus"]
 categories = ["encoding", "external-ffi-bindings", "multimedia::audio", "multimedia::encoding"]
 
 [dependencies.opusic-sys]
-version = "0.5.2"
+version = "=0.5.3"
 default-features = false
+
+[features]
+# Enables DRED feature
+dred = ["opusic-sys/dred"]
