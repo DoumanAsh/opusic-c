@@ -308,7 +308,7 @@ impl<const CH: u8> Encoder<CH> {
     }
 
     #[inline]
-    ///Gets the encoder's configured bandpass or the decoder's last bandpass.
+    ///Gets the encoder's configured bandpass
     pub fn get_bandwidth(&mut self) -> Result<Bandwidth, ErrorCode> {
         let mut value: i32 = 0;
         let result = unsafe {

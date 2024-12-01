@@ -28,6 +28,11 @@ impl<T> Unique<T> {
     }
 
     #[inline(always)]
+    pub fn as_ptr(&self) -> *const T {
+        self.0.as_ptr()
+    }
+
+    #[inline(always)]
     pub fn as_mut(&mut self) -> *mut T {
         unsafe {
             self.0.as_mut()

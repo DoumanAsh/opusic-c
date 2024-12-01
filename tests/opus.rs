@@ -1,6 +1,12 @@
-use opusic_c::{Encoder, SampleRate, Channels, Application, Bandwidth, Bitrate, Signal, InbandFec, FrameDuration};
+use opusic_c::{Encoder, Decoder};
 use opusic_c::{ErrorCode, frame_bytes_size, version};
+use opusic_c::{SampleRate, Channels, Application, Bandwidth, Bitrate, Signal, InbandFec, FrameDuration};
 
+#[test]
+fn should_verify_frame_size_utils() {
+    assert_eq!(frame_bytes_size(SampleRate::Hz48000, Channels::Mono, 120), 5760);
+    assert_eq!(frame_bytes_size(SampleRate::Hz48000, Channels::Stereo, 120), 11520);
+}
 #[test]
 fn should_assert_crate_version() {
     assert_eq!(version(), "libopus 1.5.2");
@@ -16,6 +22,12 @@ fn should_verify_encoder_encoding_stereo() {
 
     let len = encoder.encode_to_slice(&input, &mut output).expect("to encode");
     assert_eq!(&output[..len], &[252, 255, 254]);
+
+    let mut decoder = Decoder::<{Channels::Stereo as _}>::new(SampleRate::Hz48000).expect("Create");
+    let mut decoded = [0; SIZE_20MS];
+
+    let len = decoder.decode_to_slice(&output[..len], &mut decoded, false).expect("to decode");
+    assert_eq!(len, SIZE_20MS / 2);
 }
 
 #[test]
@@ -28,6 +40,13 @@ fn should_verify_encoder_encoding_mono() {
 
     let len = encoder.encode_to_slice(&input, &mut output).expect("to encode");
     assert_eq!(&output[..len], &[248, 255, 254]);
+
+    let mut decoder = Decoder::<{Channels::Mono as _}>::new(SampleRate::Hz48000).expect("Create");
+    let mut decoded = [0; SIZE_20MS];
+
+    let len = decoder.decode_to_slice(&output[..len], &mut decoded, false).expect("to decode");
+    assert_eq!(len, SIZE_20MS);
+    assert_eq!(decoded, input);
 }
 
 #[test]
@@ -166,5 +185,34 @@ fn should_verify_encoder_building() {
         encoder.set_dred_duration(4).expect("set DRED");
         let value = encoder.get_dred_duration().expect("set DRED duration");
         assert_eq!(value, 4);
+    }
+}
+
+#[test]
+fn should_verify_decoder_building() {
+    let mut decoder = Decoder::<{Channels::Stereo as _}>::new(SampleRate::Hz48000).expect("Create");
+    let value = decoder.get_sample_rate().expect("get sample rate");
+    assert_eq!(value, SampleRate::Hz48000);
+
+    let value = decoder.get_pitch().expect("get default pitch");
+    assert_eq!(value, None);
+
+    let value = decoder.get_last_packet_duration().expect("get default last packet duration");
+    assert_eq!(value, 0);
+
+    let value = decoder.get_bandwidth().expect("get default bandwidth");
+    assert_eq!(value, Bandwidth::Auto);
+
+    assert!(!decoder.get_phase_inversion_disabled().expect("get phase inversion status"), "Phase inversion is ON by default");
+    decoder.set_phase_inversion_disabled(true).expect("update phase inversion");
+    assert!(decoder.get_phase_inversion_disabled().expect("get phase inversion status"), "Phase inversion is set to OFF");
+
+    let value = decoder.get_gain().expect("get default gain");
+    assert_eq!(value, 0);
+
+    for value in -32768..=32767 {
+        decoder.set_gain(value).expect("set gain");
+        let result = decoder.get_gain().expect("get gain");
+        assert_eq!(result, value);
     }
 }
