@@ -1,0 +1,15 @@
+[package]
+name = "opusic-c"
+version = "1.5.2-beta.1"
+authors = ["Douman <douman@gmx.se>"]
+description = "High level bindings to libopus"
+readme = "README.md"
+repository = "https://github.com/DoumanAsh/opusic-c"
+license = "BSL-1.0"
+edition = "2018"
+keywords = ["opus"]
+categories = ["encoding", "external-ffi-bindings", "multimedia::audio", "multimedia::encoding"]
+
+[dependencies.opusic-sys]
+version = "0.5.2"
+default-features = false
