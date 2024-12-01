@@ -18,19 +18,13 @@ This library uses Rust's allocator whenever possible
 
 ## Setup
 
-If the `OPUS_LIB_DIR` environment variable is set, it will be searched for the opus
-library. Otherwise, a static library will be built automatically.
+If the `OPUS_LIB_DIR` environment variable is set, it will be searched for the opus library.
+Otherwise, a static library will be built automatically.
 
 ## Android build
 
 When building for android, library requires presence of env variable `ANDROID_NDK_HOME` in order to supply
 cmake with toolchain file and correct target arch.
-
-## Re-generate bindings
-
-The feature `build-bindgen` is used to generate bindings.
-
-To use it set env variable `LIBCLANG_PATH` to directory that contains clang binaries
 
 ## Requirements
 
