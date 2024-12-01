@@ -36,6 +36,21 @@ fn should_verify_encoder_encoding_stereo() {
     let decoded_len = decoder.decode_to_slice(&output[..len], &mut decoded, false).expect("to decode");
     assert_eq!(decoded_len, SIZE_20MS / 2);
 
+    let mut vec_output = Vec::with_capacity(256);
+    encoder.reset().expect("reset");
+    encoder.encode_to_vec(&input, &mut vec_output).expect("to encode");
+    assert_eq!(vec_output, &[252, 255, 254]);
+
+    let mut vec_decoded = Vec::with_capacity(SIZE_20MS);
+    decoder.reset().expect("to reset");
+    let decoded_len = decoder.decode_to_vec(&vec_output, &mut vec_decoded, false).expect("to decode");
+    assert_eq!(decoded_len, vec_decoded.len());
+    assert_eq!(vec_decoded, decoded[..SIZE_20MS / 2]);
+
+    encoder.reset().expect("reset");
+    encoder.encode_to_vec(&input, &mut vec_output).expect("to encode");
+    assert_eq!(vec_output, &[252, 255, 254, 252, 255, 254]);
+
     #[cfg(feature = "dred")]
     {
         encoder.reset().expect("reset");

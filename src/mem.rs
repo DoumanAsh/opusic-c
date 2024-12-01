@@ -1,4 +1,4 @@
-extern crate alloc;
+pub extern crate alloc;
 
 use core::{mem, ptr};
 use alloc::alloc::Layout;

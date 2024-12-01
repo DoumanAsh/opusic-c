@@ -1,5 +1,7 @@
 use crate::{sys, mem, ErrorCode, Application, Channels, SampleRate, Bandwidth, Bitrate, Signal, InbandFec, FrameDuration};
 
+use mem::alloc::vec::Vec;
+
 #[repr(transparent)]
 ///OPUS encoder
 pub struct Encoder<const CH: u8> {
@@ -62,6 +64,23 @@ impl<const CH: u8> Encoder<CH> {
         self.encode_to(input, unsafe { mem::transmute(output) })
     }
 
+    #[inline(always)]
+    ///Encodes an Opus frame, returning number of bytes written.
+    ///
+    ///Vector will be written into spare capacity, modifying its length on success.
+    ///
+    ///It is user responsibility to reserve correct amount of space
+    ///
+    ///Refer to `encode_to` for details
+    pub fn encode_to_vec(&mut self, input: &[u16], output: &mut Vec<u8>) -> Result<usize, ErrorCode> {
+        let initial_len = output.len();
+        let result = self.encode_to(input, output.spare_capacity_mut())?;
+        unsafe {
+            output.set_len(initial_len + result);
+        }
+        Ok(result)
+    }
+
     ///Encodes an Opus frame, returning number of bytes written.
     ///
     ///If more than 1 channel is configured, then input must be interleaved.
@@ -92,6 +111,23 @@ impl<const CH: u8> Encoder<CH> {
     ///Refer to `encode_to` for details
     pub fn encode_float_to_slice(&mut self, input: &[f32], output: &mut [u8]) -> Result<usize, ErrorCode> {
         self.encode_float_to(input, unsafe { mem::transmute(output) })
+    }
+
+    #[inline(always)]
+    ///Encodes an Opus frame, returning number of bytes written.
+    ///
+    ///Vector will be written into spare capacity, modifying its length on success.
+    ///
+    ///It is user responsibility to reserve correct amount of space
+    ///
+    ///Refer to `encode_to` for details
+    pub fn encode_float_to_vec(&mut self, input: &[f32], output: &mut Vec<u8>) -> Result<usize, ErrorCode> {
+        let initial_len = output.len();
+        let result = self.encode_float_to(input, output.spare_capacity_mut())?;
+        unsafe {
+            output.set_len(initial_len + result);
+        }
+        Ok(result)
     }
 
     #[inline]

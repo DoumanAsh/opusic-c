@@ -3,6 +3,8 @@ use crate::{sys, mem, ErrorCode, Channels, SampleRate, Bandwidth};
 use core::{ptr, num};
 use core::convert::TryInto;
 
+use mem::alloc::vec::Vec;
+
 #[repr(transparent)]
 ///OPUS Decoder
 pub struct Decoder<const CH: u8> {
@@ -55,7 +57,7 @@ impl<const CH: u8> Decoder<CH> {
     ///
     ///When `decode_fec` is `true`, requests that any in-band forward error correction data be decoded.
     ///If no such data is available, the frame is decoded as if it were lost.
-    pub fn decode_to(&mut self, input: &[u8], output: &mut [mem::MaybeUninit<i16>], decode_fec: bool) -> Result<usize, ErrorCode> {
+    pub fn decode_to(&mut self, input: &[u8], output: &mut [mem::MaybeUninit<u16>], decode_fec: bool) -> Result<usize, ErrorCode> {
         let (input_ptr, input_len) = match input.len() {
             0 => (ptr::null(), 0),
             len => (input.as_ptr(), len as _)
@@ -81,6 +83,23 @@ impl<const CH: u8> Decoder<CH> {
     ///Refer to `decode_to` for details
     pub fn decode_to_slice(&mut self, input: &[u8], output: &mut [u16], decode_fec: bool) -> Result<usize, ErrorCode> {
         self.decode_to(input, unsafe { mem::transmute(output) }, decode_fec)
+    }
+
+    #[inline(always)]
+    ///Decodes input packet, returning number of decoded samples.
+    ///
+    ///Vector will be written into spare capacity, modifying its length on success.
+    ///
+    ///It is user responsibility to reserve correct amount of space
+    ///
+    ///Refer to `decode_to` for details
+    pub fn decode_to_vec(&mut self, input: &[u8], output: &mut Vec<u16>, decode_fec: bool) -> Result<usize, ErrorCode> {
+        let initial_len = output.len();
+        let result = self.decode_to(input, output.spare_capacity_mut(), decode_fec)?;
+        unsafe {
+            output.set_len(initial_len + result);
+        }
+        Ok(result)
     }
 
     ///Decodes input packet, returning number of decoded samples.
@@ -124,6 +143,23 @@ impl<const CH: u8> Decoder<CH> {
     ///Refer to `decode_to` for details
     pub fn decode_float_to_slice(&mut self, input: &[u8], output: &mut [f32], decode_fec: bool) -> Result<usize, ErrorCode> {
         self.decode_float_to(input, unsafe { mem::transmute(output) }, decode_fec)
+    }
+
+    #[inline(always)]
+    ///Decodes input packet, returning number of decoded samples.
+    ///
+    ///Vector will be written into spare capacity, modifying its length on success.
+    ///
+    ///It is user responsibility to reserve correct amount of space
+    ///
+    ///Refer to `decode_to` for details
+    pub fn decode_float_to_vec(&mut self, input: &[u8], output: &mut Vec<f32>, decode_fec: bool) -> Result<usize, ErrorCode> {
+        let initial_len = output.len();
+        let result = self.decode_float_to(input, output.spare_capacity_mut(), decode_fec)?;
+        unsafe {
+            output.set_len(initial_len + result);
+        }
+        Ok(result)
     }
 
     ///Gets the number of samples of an Opus packet.
