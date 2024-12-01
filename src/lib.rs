@@ -1,8 +1,14 @@
-//!High level bindings to the libopus
+//!High level bindings to [libopus](https://github.com/xiph/opus)
+//!
+//!Target version [1.5.2](https://github.com/xiph/opus/releases/tag/v1.5.2)
 //!
 //!## Allocator
 //!
 //!This library uses Rust's allocator whenever possible
+//!
+//!## Features
+//!
+//!- `dred` - Enables experimental DRED decoder
 
 #![no_std]
 #![warn(missing_docs)]
@@ -29,6 +35,8 @@ mod encoder;
 pub use encoder::*;
 mod decoder;
 pub use decoder::*;
+#[cfg(feature = "dred")]
+pub mod dred;
 
 ///Computes OPUS frame size in bytes for specified duration
 pub const fn frame_bytes_size(sample_rate: SampleRate, channels: Channels, duration_ms: usize) -> usize {

@@ -8,6 +8,14 @@ High level bindings to [libopus](https://github.com/xiph/opus)
 
 Target version [1.5.2](https://github.com/xiph/opus/releases/tag/v1.5.2)
 
+## Allocator
+
+This library uses Rust's allocator whenever possible
+
+## Features
+
+- `dred` - Enables experimental DRED decoder
+
 ## Setup
 
 If the `OPUS_LIB_DIR` environment variable is set, it will be searched for the opus

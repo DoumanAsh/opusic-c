@@ -1,75 +1,113 @@
-use crate::{sys, mem, ErrorCode, Channels, SampleRate, Bandwidth};
+//! DRED decoder
+use crate::{sys, mem, Decoder, ErrorCode, SampleRate, Bandwidth};
 
-use core::{ptr, num};
-use core::convert::TryInto;
+use core::num;
 
-#[repr(transparent)]
-///OPUS Decoder
-pub struct Decoder<const CH: u8> {
-    pub(crate) inner: mem::Unique<sys::OpusDecoder>
+///Opus DRED packet size (used to alloc memory)
+pub const DRED_PACKET_SIZE: usize = 10592;
+
+///Retrieves OPUS DRED packet size as per libopus requirements
+pub fn dred_packet_size() -> usize {
+    unsafe {
+        sys::opus_dred_get_size() as _
+    }
 }
 
-impl<const CH: u8> Decoder<CH> {
-    const CHANNELS: Channels = match CH {
-        1 => Channels::Mono,
-        2 => Channels::Stereo,
-        _ => panic!("Unsupported number of channels. Allowed range: 1..=2"),
-    };
+#[repr(transparent)]
+///Opus DRED packet state
+pub struct DredPacket {
+    inner: mem::Unique<sys::OpusDRED>
+}
 
+impl DredPacket {
+    ///Creates new uninitialized packet
+    pub fn new() -> Result<Self, ErrorCode> {
+        match mem::Unique::new(DRED_PACKET_SIZE) {
+            Some(inner) => Ok(DredPacket {
+                inner,
+            }),
+            None => Err(ErrorCode::AllocFail),
+        }
+    }
+}
+
+///OPUS Decoder
+pub struct Dred<const CH: u8> {
+    inner: mem::Unique<sys::OpusDREDDecoder>,
+    decoder: Decoder<CH>,
+    packet: DredPacket,
+}
+
+impl<const CH: u8> Dred<CH> {
     ///Creates new decoder instance
-    pub fn new(rate: SampleRate) -> Result<Self, ErrorCode> {
+    pub fn new(decoder: Decoder<CH>) -> Result<Self, ErrorCode> {
         let size = unsafe {
-            sys::opus_decoder_get_size(Self::CHANNELS as _)
+            sys::opus_dred_decoder_get_size()
         };
 
         if size == 0 {
             return Err(ErrorCode::Internal);
         }
 
+        let packet = DredPacket::new()?;
         let mut decoder = match mem::Unique::new(size as _) {
-            Some(inner) => Decoder {
+            Some(inner) => Dred {
                 inner,
+                decoder,
+                packet,
             },
             None => return Err(ErrorCode::AllocFail)
         };
 
         let result = unsafe {
-            sys::opus_decoder_init(decoder.inner.as_mut(), rate as _, Self::CHANNELS as _)
+            sys::opus_dred_decoder_init(decoder.inner.as_mut())
         };
 
         map_sys_error!(result => decoder)
     }
 
+    ///Access underlying decoder
+    pub fn decoder(&mut self) -> &Decoder<CH> {
+        &self.decoder
+    }
+
+    ///Access underlying decoder
+    pub fn decoder_mut(&mut self) -> &mut Decoder<CH> {
+        &mut self.decoder
+    }
+
     ///Decodes input packet, returning number of decoded samples.
-    ///
-    ///If more than 1 channel is configured, then input must be interleaved.
     ///
     ///Output size must correspond to sampling rate.
     ///For example, at 48 kHz allowed frame sizes are 120, 240, 480, 960, 1920, and 2880.
     ///
     ///Maximum packet duration is 120ms therefore maximum `frame size` must be
     ///`frame_bytes_size(SampleRate::Hz48000, Channels::Stereo, 120)`
-    ///
-    ///When `input` size is 0, libopus shall treat it as packet loss, in which case `output` size must
-    ///match expected output of next packet to know how much frames is skipped
-    ///
-    ///When `decode_fec` is `true`, requests that any in-band forward error correction data be decoded.
-    ///If no such data is available, the frame is decoded as if it were lost.
-    pub fn decode_to(&mut self, input: &[u8], output: &mut [mem::MaybeUninit<i16>], decode_fec: bool) -> Result<usize, ErrorCode> {
-        let (input_ptr, input_len) = match input.len() {
-            0 => (ptr::null(), 0),
-            len => (input.as_ptr(), len as _)
+    pub fn decode_to(&mut self, input: &[u8], output: &mut [mem::MaybeUninit<i16>]) -> Result<usize, ErrorCode> {
+        const MAX_SAMPLE_RATE: i32 = SampleRate::Hz48000 as _;
+
+        let mut _dred_end = 0;
+        let input_ptr = input.as_ptr();
+        let input_len = input.len() as _;
+
+        let frame_size = (output.len() / CH as usize) as _;
+
+        let result = unsafe {
+            sys::opus_dred_parse(self.inner.as_mut(), self.packet.inner.as_mut(),
+                                 input_ptr, input_len,
+                                 MAX_SAMPLE_RATE, MAX_SAMPLE_RATE,
+                                 &mut _dred_end, 0)
         };
 
-        let fec = match decode_fec {
-            true => 1,
-            false => 0,
-        };
+        if result < 0 {
+            return Err(result.into());
+        }
+
         let result = unsafe {
-            sys::opus_decode(self.inner.as_mut(),
-                             input_ptr, input_len,
-                             output.as_mut_ptr() as _, (output.len() / CH as usize) as _,
-                             fec)
+            sys::opus_decoder_dred_decode(
+                self.decoder.inner.as_mut(), self.packet.inner.as_ptr(),
+                frame_size, output.as_ptr() as _, frame_size
+            )
         };
 
         map_sys_error!(result => result as _)
@@ -79,40 +117,42 @@ impl<const CH: u8> Decoder<CH> {
     ///Decodes input packet, returning number of decoded samples.
     ///
     ///Refer to `decode_to` for details
-    pub fn decode_to_slice(&mut self, input: &[u8], output: &mut [u16], decode_fec: bool) -> Result<usize, ErrorCode> {
-        self.decode_to(input, unsafe { mem::transmute(output) }, decode_fec)
+    pub fn decode_to_slice(&mut self, input: &[u8], output: &mut [u16]) -> Result<usize, ErrorCode> {
+        self.decode_to(input, unsafe { mem::transmute(output) })
     }
 
     ///Decodes input packet, returning number of decoded samples.
-    ///
-    ///If more than 1 channel is configured, then input must be interleaved.
     ///
     ///Output size must correspond to sampling rate.
     ///For example, at 48 kHz allowed frame sizes are 120, 240, 480, 960, 1920, and 2880.
     ///
     ///Maximum packet duration is 120ms therefore maximum `frame size` must be
     ///`frame_bytes_size(SampleRate::Hz48000, Channels::Stereo, 120)`
-    ///
-    ///When `input` size is 0, libopus shall treat it as packet loss, in which case `output` size must
-    ///match expected output of next packet to know how much frames is skipped
-    ///
-    ///When `decode_fec` is `true`, requests that any in-band forward error correction data be decoded.
-    ///If no such data is available, the frame is decoded as if it were lost.
-    pub fn decode_float_to(&mut self, input: &[u8], output: &mut [mem::MaybeUninit<f32>], decode_fec: bool) -> Result<usize, ErrorCode> {
-        let (input_ptr, input_len) = match input.len() {
-            0 => (ptr::null(), 0),
-            len => (input.as_ptr(), len as _)
-        };
-        let fec = match decode_fec {
-            true => 1,
-            false => 0,
-        };
+    pub fn decode_float_to(&mut self, input: &[u8], output: &mut [mem::MaybeUninit<f32>]) -> Result<usize, ErrorCode> {
+        const MAX_SAMPLE_RATE: i32 = SampleRate::Hz48000 as _;
+
+        let mut _dred_end = 0;
+        let input_ptr = input.as_ptr();
+        let input_len = input.len() as _;
+
+        let frame_size = (output.len() / CH as usize) as _;
 
         let result = unsafe {
-            sys::opus_decode_float(self.inner.as_mut(),
-                                   input_ptr, input_len,
-                                   output.as_mut_ptr() as _, (output.len() / CH as usize) as _,
-                                   fec)
+            sys::opus_dred_parse(self.inner.as_mut(), self.packet.inner.as_mut(),
+                                 input_ptr, input_len,
+                                 MAX_SAMPLE_RATE, MAX_SAMPLE_RATE,
+                                 &mut _dred_end, 0)
+        };
+
+        if result < 0 {
+            return Err(result.into());
+        }
+
+        let result = unsafe {
+            sys::opus_decoder_dred_decode_float(
+                self.decoder.inner.as_mut(), self.packet.inner.as_ptr(),
+                frame_size, output.as_ptr() as _, frame_size
+            )
         };
 
         map_sys_error!(result => result as _)
@@ -122,30 +162,16 @@ impl<const CH: u8> Decoder<CH> {
     ///Decodes input packet, returning number of decoded samples.
     ///
     ///Refer to `decode_to` for details
-    pub fn decode_float_to_slice(&mut self, input: &[u8], output: &mut [f32], decode_fec: bool) -> Result<usize, ErrorCode> {
-        self.decode_float_to(input, unsafe { mem::transmute(output) }, decode_fec)
-    }
-
-    ///Gets the number of samples of an Opus packet.
-    pub fn get_nb_samples(&self, input: &[u8]) -> Result<usize, ErrorCode> {
-        let len = match input.len().try_into() {
-            Ok(len) => len,
-            //This is very unlikely if user gets valid packets fed
-            Err(_) => return Err(ErrorCode::invalid_packet()),
-        };
-
-        let result = unsafe {
-            sys::opus_decoder_get_nb_samples(self.inner.as_ptr(), input.as_ptr() as *const _, len)
-        };
-
-        map_sys_error!(result => result as _)
+    pub fn decode_float_to_slice(&mut self, input: &[u8], output: &mut [f32]) -> Result<usize, ErrorCode> {
+        self.decode_float_to(input, unsafe { mem::transmute(output) })
     }
 
     #[inline]
     ///Resets state to initial
     pub fn reset(&mut self) -> Result<(), ErrorCode> {
+        self.decoder.reset()?;
         let result = unsafe {
-            sys::opus_decoder_ctl(self.inner.as_mut(), sys::OPUS_RESET_STATE)
+            sys::opus_dred_decoder_ctl(self.inner.as_mut(), sys::OPUS_RESET_STATE)
         };
 
         map_sys_error!(result => ())
@@ -160,7 +186,7 @@ impl<const CH: u8> Decoder<CH> {
     pub fn get_pitch(&mut self) -> Result<Option<num::NonZeroU32>, ErrorCode> {
         let mut value: i32 = 0;
         let result = unsafe {
-            sys::opus_decoder_ctl(self.inner.as_mut(), sys::OPUS_GET_PITCH_REQUEST, &mut value)
+            sys::opus_dred_decoder_ctl(self.inner.as_mut(), sys::OPUS_GET_PITCH_REQUEST, &mut value)
         };
 
         map_sys_error!(result => num::NonZeroU32::new(result as _))
@@ -171,7 +197,7 @@ impl<const CH: u8> Decoder<CH> {
     pub fn get_last_packet_duration(&mut self) -> Result<u32, ErrorCode> {
         let mut value: i32 = 0;
         let result = unsafe {
-            sys::opus_decoder_ctl(self.inner.as_mut(), sys::OPUS_GET_LAST_PACKET_DURATION_REQUEST, &mut value)
+            sys::opus_dred_decoder_ctl(self.inner.as_mut(), sys::OPUS_GET_LAST_PACKET_DURATION_REQUEST, &mut value)
         };
 
         map_sys_error!(result => value as _)
@@ -182,7 +208,7 @@ impl<const CH: u8> Decoder<CH> {
     pub fn get_gain(&mut self) -> Result<i32, ErrorCode> {
         let mut value: i32 = 0;
         let result = unsafe {
-            sys::opus_decoder_ctl(self.inner.as_mut(), sys::OPUS_GET_GAIN_REQUEST, &mut value)
+            sys::opus_dred_decoder_ctl(self.inner.as_mut(), sys::OPUS_GET_GAIN_REQUEST, &mut value)
         };
 
         map_sys_error!(result => value)
@@ -203,7 +229,7 @@ impl<const CH: u8> Decoder<CH> {
     ///`gain = pow(10, x/(20.0*256))`
     pub fn set_gain(&mut self, value: i32) -> Result<(), ErrorCode> {
         let result = unsafe {
-            sys::opus_decoder_ctl(self.inner.as_mut(), sys::OPUS_SET_GAIN_REQUEST, value)
+            sys::opus_dred_decoder_ctl(self.inner.as_mut(), sys::OPUS_SET_GAIN_REQUEST, value)
         };
 
         map_sys_error!(result => ())
@@ -214,7 +240,7 @@ impl<const CH: u8> Decoder<CH> {
     pub fn get_bandwidth(&mut self) -> Result<Bandwidth, ErrorCode> {
         let mut value: i32 = 0;
         let result = unsafe {
-            sys::opus_decoder_ctl(self.inner.as_mut(), sys::OPUS_GET_BANDWIDTH_REQUEST, &mut value)
+            sys::opus_dred_decoder_ctl(self.inner.as_mut(), sys::OPUS_GET_BANDWIDTH_REQUEST, &mut value)
         };
 
         map_sys_error!(result => value.into())
@@ -225,7 +251,7 @@ impl<const CH: u8> Decoder<CH> {
     pub fn get_sample_rate(&mut self) -> Result<SampleRate, ErrorCode> {
         let mut value: i32 = 0;
         let result = unsafe {
-            sys::opus_decoder_ctl(self.inner.as_mut(), sys::OPUS_GET_SAMPLE_RATE_REQUEST, &mut value)
+            sys::opus_dred_decoder_ctl(self.inner.as_mut(), sys::OPUS_GET_SAMPLE_RATE_REQUEST, &mut value)
         };
 
         map_sys_error!(result => match value {
@@ -243,7 +269,7 @@ impl<const CH: u8> Decoder<CH> {
     pub fn get_phase_inversion_disabled(&mut self) -> Result<bool, ErrorCode> {
         let mut value: i32 = 0;
         let result = unsafe {
-            sys::opus_decoder_ctl(self.inner.as_mut(), sys::OPUS_GET_PHASE_INVERSION_DISABLED_REQUEST, &mut value)
+            sys::opus_dred_decoder_ctl(self.inner.as_mut(), sys::OPUS_GET_PHASE_INVERSION_DISABLED_REQUEST, &mut value)
         };
 
         map_sys_error!(result => value == 1)
@@ -265,7 +291,7 @@ impl<const CH: u8> Decoder<CH> {
         };
 
         let result = unsafe {
-            sys::opus_decoder_ctl(self.inner.as_mut(), sys::OPUS_SET_PHASE_INVERSION_DISABLED_REQUEST, value)
+            sys::opus_dred_decoder_ctl(self.inner.as_mut(), sys::OPUS_SET_PHASE_INVERSION_DISABLED_REQUEST, value)
         };
 
         map_sys_error!(result => ())

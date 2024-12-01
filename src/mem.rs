@@ -61,7 +61,7 @@ impl<T> Drop for Unique<T> {
             let ptr = self.0.as_ptr();
             let mem = (ptr as *mut u8).offset(-(LAYOUT_OFFSET as isize));
             let size = ptr::read(ptr as *const usize);
-            let layout = Layout::from_size_align_unchecked(size, MIN_ALIGN);
+            let layout = Layout::from_size_align_unchecked(size + LAYOUT_OFFSET, MIN_ALIGN);
             alloc::alloc::dealloc(mem, layout);
         }
     }

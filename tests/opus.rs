@@ -2,6 +2,13 @@ use opusic_c::{Encoder, Decoder};
 use opusic_c::{ErrorCode, frame_bytes_size, version};
 use opusic_c::{SampleRate, Channels, Application, Bandwidth, Bitrate, Signal, InbandFec, FrameDuration};
 
+#[cfg(feature = "dred")]
+#[test]
+fn should_verify_dred_packet_size() {
+    use opusic_c::dred::{DRED_PACKET_SIZE, dred_packet_size};
+    assert_eq!(DRED_PACKET_SIZE, dred_packet_size());
+}
+
 #[test]
 fn should_verify_frame_size_utils() {
     assert_eq!(frame_bytes_size(SampleRate::Hz48000, Channels::Mono, 120), 5760);
@@ -26,8 +33,22 @@ fn should_verify_encoder_encoding_stereo() {
     let mut decoder = Decoder::<{Channels::Stereo as _}>::new(SampleRate::Hz48000).expect("Create");
     let mut decoded = [0; SIZE_20MS];
 
-    let len = decoder.decode_to_slice(&output[..len], &mut decoded, false).expect("to decode");
-    assert_eq!(len, SIZE_20MS / 2);
+    let decoded_len = decoder.decode_to_slice(&output[..len], &mut decoded, false).expect("to decode");
+    assert_eq!(decoded_len, SIZE_20MS / 2);
+
+    #[cfg(feature = "dred")]
+    {
+        encoder.reset().expect("reset");
+        encoder.set_dred_duration(10).expect("enable DRED");
+        let len = encoder.encode_to_slice(&input, &mut output).expect("to encode");
+        assert_eq!(&output[..len], &[252, 255, 254]);
+
+        let mut decoded_dred = [1; SIZE_20MS];
+        let mut dred = opusic_c::dred::Dred::new(decoder).expect("create DRED decoder");
+        let len = dred.decode_to_slice(&output[..len], &mut decoded_dred).expect("to decode");
+        assert_eq!(len, SIZE_20MS / 2);
+        assert_eq!(decoded, decoded_dred);
+    }
 }
 
 #[test]
@@ -47,6 +68,8 @@ fn should_verify_encoder_encoding_mono() {
     let len = decoder.decode_to_slice(&output[..len], &mut decoded, false).expect("to decode");
     assert_eq!(len, SIZE_20MS);
     assert_eq!(decoded, input);
+
+    decoder.reset().expect("reset");
 }
 
 #[test]
