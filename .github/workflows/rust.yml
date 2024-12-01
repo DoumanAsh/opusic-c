@@ -9,6 +9,7 @@ on:
       - 'src/**.rs'
       - 'tests/**'
       - 'Cargo.toml'
+      - 'valgrind.supp'
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
@@ -18,6 +19,7 @@ on:
       - 'src/**.rs'
       - 'tests/**'
       - 'Cargo.toml'
+      - 'valgrind.supp'
 
 jobs:
   test:
@@ -67,7 +69,7 @@ jobs:
     - name: Valgrind Check
       if: runner.os == 'Linux'
       env:
-        CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: "valgrind --leak-check=full --error-exitcode=1 --gen-suppressions=all"
+        CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: "valgrind --leak-check=full --error-exitcode=1 --gen-suppressions=all --suppressions=valgrind.supp"
       run: cargo test
 
   cross-compilation-test:
