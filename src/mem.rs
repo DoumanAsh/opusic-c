@@ -14,10 +14,6 @@ const MIN_ALIGN: usize = 16;
 
 const LAYOUT_OFFSET: usize = mem::size_of::<usize>();
 
-const fn next_aligned(size: usize, alignment: usize) -> usize {
-  size.saturating_add(alignment - 1) & !(alignment - 1)
-}
-
 #[repr(transparent)]
 ///Unique ptr with allocated storage
 ///
@@ -43,8 +39,7 @@ impl<T> Unique<T> {
         }
     }
 
-    pub fn new(mut size: usize) -> Option<Self> {
-        size = next_aligned(size, MIN_ALIGN);
+    pub fn new(size: usize) -> Option<Self> {
         if let Ok(layout) = Layout::from_size_align(size + LAYOUT_OFFSET, MIN_ALIGN) {
             unsafe {
                 let ptr = alloc::alloc::alloc(layout);
@@ -65,7 +60,7 @@ impl<T> Drop for Unique<T> {
         unsafe {
             let ptr = self.0.as_ptr();
             let mem = (ptr as *mut u8).offset(-(LAYOUT_OFFSET as isize));
-            let size = ptr::read(ptr as *const usize);
+            let size = ptr::read(mem as *const usize);
             let layout = Layout::from_size_align_unchecked(size + LAYOUT_OFFSET, MIN_ALIGN);
             alloc::alloc::dealloc(mem, layout);
         }
