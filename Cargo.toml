@@ -17,3 +17,6 @@ default-features = false
 [features]
 # Enables DRED feature
 dred = ["opusic-sys/dred"]
+
+[package.metadata.docs.rs]
+features = ["dred"]
