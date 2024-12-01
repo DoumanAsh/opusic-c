@@ -23,6 +23,7 @@ macro_rules! map_sys_error {
         }
     }};
 }
+
 mod mem;
 mod encoder;
 pub use encoder::*;
@@ -36,6 +37,21 @@ const _FRAME_SIZE_TEST: () = {
     assert!(frame_bytes_size(SampleRate::Hz48000, Channels::Mono, 10) == 480);
     assert!(frame_bytes_size(SampleRate::Hz48000, Channels::Stereo, 10) == 960);
 };
+
+///Computes max possible duration  for frame (ms).
+///
+///## Note
+///
+///Generally OPUS allows following frame sizes (depending on codec):
+///
+///- SILK: 10, 20, 40, 60
+///- CELT: 2,5, 5, 10, 20
+///
+///Underlying libopus uses hybrid approach so you can generally use any of the sizes above.
+///Going above 60ms obviously makes no sense
+pub const fn max_frame_duration(sample_rate: SampleRate) -> usize {
+    (i32::MAX as usize / ((sample_rate as usize) / 1000))
+}
 
 #[repr(i32)]
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -58,7 +74,7 @@ pub enum ErrorCode {
     ///Invalid/unsupported request number
     Unimplemented = sys::OPUS_UNIMPLEMENTED,
     ///Unknown error variant. Should not be possible
-    Unknown = 1,
+    Unknown = -200,
 }
 
 impl ErrorCode {
