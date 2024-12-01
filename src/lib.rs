@@ -37,6 +37,7 @@ mod decoder;
 pub use decoder::*;
 #[cfg(feature = "dred")]
 pub mod dred;
+pub mod utils;
 
 ///Computes OPUS frame size in bytes for specified duration
 pub const fn frame_bytes_size(sample_rate: SampleRate, channels: Channels, duration_ms: usize) -> usize {
