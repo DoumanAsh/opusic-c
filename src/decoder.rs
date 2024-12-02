@@ -90,12 +90,17 @@ impl<const CH: u8> Decoder<CH> {
     ///
     ///Vector will be written into spare capacity, modifying its length on success.
     ///
-    ///It is user responsibility to reserve correct amount of space
+    ///`decode_len` is used to reserve additional memory and will be passed exactly with this size to `decode_to`
     ///
     ///Refer to `decode_to` for details
-    pub fn decode_to_vec(&mut self, input: &[u8], output: &mut Vec<u16>, decode_fec: bool) -> Result<usize, ErrorCode> {
+    pub fn decode_to_vec(&mut self, input: &[u8], output: &mut Vec<u16>, decode_len: usize, decode_fec: bool) -> Result<usize, ErrorCode> {
         let initial_len = output.len();
-        let result = self.decode_to(input, output.spare_capacity_mut(), decode_fec)?;
+
+        if output.try_reserve(decode_len).is_err() {
+            return Err(ErrorCode::alloc_fail())
+        }
+
+        let result = self.decode_to(input, &mut output.spare_capacity_mut()[..decode_len], decode_fec)?;
         unsafe {
             output.set_len(initial_len + result);
         }
@@ -150,12 +155,17 @@ impl<const CH: u8> Decoder<CH> {
     ///
     ///Vector will be written into spare capacity, modifying its length on success.
     ///
-    ///It is user responsibility to reserve correct amount of space
+    ///`decode_len` is used to reserve additional memory and will be passed exactly with this size to `decode_to`
     ///
     ///Refer to `decode_to` for details
-    pub fn decode_float_to_vec(&mut self, input: &[u8], output: &mut Vec<f32>, decode_fec: bool) -> Result<usize, ErrorCode> {
+    pub fn decode_float_to_vec(&mut self, input: &[u8], output: &mut Vec<f32>, decode_len: usize, decode_fec: bool) -> Result<usize, ErrorCode> {
         let initial_len = output.len();
-        let result = self.decode_float_to(input, output.spare_capacity_mut(), decode_fec)?;
+
+        if output.try_reserve(decode_len).is_err() {
+            return Err(ErrorCode::alloc_fail())
+        }
+
+        let result = self.decode_float_to(input, &mut output.spare_capacity_mut()[..decode_len], decode_fec)?;
         unsafe {
             output.set_len(initial_len + result);
         }

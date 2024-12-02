@@ -43,7 +43,7 @@ fn should_verify_encoder_encoding_stereo() {
 
     let mut vec_decoded = Vec::with_capacity(SIZE_20MS);
     decoder.reset().expect("to reset");
-    let decoded_len = decoder.decode_to_vec(&vec_output, &mut vec_decoded, false).expect("to decode");
+    let decoded_len = decoder.decode_to_vec(&vec_output, &mut vec_decoded, SIZE_20MS, false).expect("to decode");
     assert_eq!(decoded_len, vec_decoded.len());
     assert_eq!(vec_decoded, decoded[..SIZE_20MS / 2]);
 

@@ -1,6 +1,6 @@
 [package]
 name = "opusic-c"
-version = "1.5.2-beta.2"
+version = "1.5.2-beta.3"
 authors = ["Douman <douman@gmx.se>"]
 description = "High level bindings to libopus"
 readme = "README.md"

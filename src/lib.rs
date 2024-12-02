@@ -86,6 +86,12 @@ impl ErrorCode {
         Self::InvalidPacket
     }
 
+    #[cold]
+    #[inline(never)]
+    const fn alloc_fail() -> Self {
+        Self::AllocFail
+    }
+
     #[inline]
     ///Returns text representation of error
     pub const fn message(&self) -> &'static str {
