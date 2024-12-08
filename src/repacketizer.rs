@@ -44,6 +44,8 @@ pub fn unpad_packet(input: &mut [u8]) -> Result<usize, ErrorCode> {
 }
 
 #[must_use]
+#[derive(Debug)]
+#[repr(transparent)]
 ///Currently being processed packet
 ///
 ///User must ensure that all packets are accessible until `Repacketizer` is no longer in use or `reset`

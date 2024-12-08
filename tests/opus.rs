@@ -1,4 +1,4 @@
-use opusic_c::{Encoder, Decoder};
+use opusic_c::{repacketizer, Encoder, Decoder};
 use opusic_c::{ErrorCode, frame_bytes_size, version};
 use opusic_c::{SampleRate, Channels, Application, Bandwidth, Bitrate, Signal, InbandFec, FrameDuration};
 
@@ -253,4 +253,51 @@ fn should_verify_decoder_building() {
         let result = decoder.get_gain().expect("get gain");
         assert_eq!(result, value);
     }
+}
+
+#[test]
+fn should_fail_to_repacketizer() {
+    let mut packet = [0u8; 1277];
+
+    let mut repacketizer = repacketizer::Repacketizer::new().expect("create repacketizer");
+
+    assert_eq!(repacketizer.get_nb_frames(), 0);
+
+    //no buffer = fail
+    let mut error = repacketizer.add_packet(&[]).expect_err("should fail empty packet");
+    assert_eq!(error, ErrorCode::InvalidPacket);
+
+    //packet with zero len but invalid actual size
+    error = repacketizer.add_packet(&packet).expect_err("should fail empty packet");
+    assert_eq!(error, ErrorCode::InvalidPacket);
+
+    //odd op code
+    packet[0] = 1;
+    error = repacketizer.add_packet(&packet[..2]).expect_err("should fail empty packet");
+    assert_eq!(error, ErrorCode::InvalidPacket);
+
+    //overflow
+    packet[0] = 2;
+    error = repacketizer.add_packet(&packet[..1]).expect_err("should fail empty packet");
+    assert_eq!(error, ErrorCode::InvalidPacket);
+
+    //no count
+    packet[0] = 3;
+    error = repacketizer.add_packet(&packet[..1]).expect_err("should fail empty packet");
+    assert_eq!(error, ErrorCode::InvalidPacket);
+
+    //ok empty packet
+    packet[0] = 0;
+    let packet_holder1 = repacketizer.add_packet(&packet[..3]).expect("should successfully add packet with zero len");
+    assert_eq!(packet_holder1.0.len(), 3);
+
+    //TOC change error detected
+    packet[0] = 1 << 2;
+    error = repacketizer.add_packet(&packet[..3]).expect_err("should fail empty packet");
+    assert_eq!(error, ErrorCode::InvalidPacket);
+
+    repacketizer.reset();
+    //Reset allows new TOC
+    let packet_holder1 = repacketizer.add_packet(&packet[..3]).expect("should successfully add packet with zero len");
+    assert_eq!(packet_holder1.0.len(), 3);
 }
