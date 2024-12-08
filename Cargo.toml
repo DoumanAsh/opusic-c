@@ -7,7 +7,7 @@ readme = "README.md"
 repository = "https://github.com/DoumanAsh/opusic-c"
 license = "BSL-1.0"
 edition = "2018"
-keywords = ["opus"]
+keywords = ["libopus", "opus", "codec"]
 categories = ["encoding", "external-ffi-bindings", "multimedia::audio", "multimedia::encoding"]
 
 [dependencies.opusic-sys]
