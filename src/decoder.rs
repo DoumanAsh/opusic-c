@@ -7,6 +7,10 @@ use mem::alloc::vec::Vec;
 
 #[repr(transparent)]
 ///OPUS Decoder
+///
+///## Parameters
+///
+///`CH` - Number of channels to use
 pub struct Decoder<const CH: u8> {
     pub(crate) inner: mem::Unique<sys::OpusDecoder>
 }
@@ -317,3 +321,5 @@ impl<const CH: u8> Decoder<CH> {
         map_sys_error!(result => ())
     }
 }
+
+unsafe impl<const CH: u8> Send for Decoder<CH> {}
