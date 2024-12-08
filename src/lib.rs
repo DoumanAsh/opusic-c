@@ -37,6 +37,7 @@ mod decoder;
 pub use decoder::*;
 #[cfg(feature = "dred")]
 pub mod dred;
+pub mod repacketizer;
 pub mod utils;
 
 ///Computes OPUS frame size in bytes for specified duration
@@ -84,6 +85,12 @@ impl ErrorCode {
     #[inline(never)]
     const fn invalid_packet() -> Self {
         Self::InvalidPacket
+    }
+
+    #[cold]
+    #[inline(never)]
+    const fn bad_arg() -> Self {
+        Self::BadArg
     }
 
     #[cold]

@@ -33,6 +33,12 @@ impl<T> Unique<T> {
     }
 
     #[inline(always)]
+    //This is to be used when you know that opus library will only read data from this pointer
+    pub unsafe fn as_pseudo_mut(&self) -> *mut T {
+        self.0.as_ptr()
+    }
+
+    #[inline(always)]
     pub fn as_mut(&mut self) -> *mut T {
         unsafe {
             self.0.as_mut()
