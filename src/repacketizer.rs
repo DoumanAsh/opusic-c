@@ -165,17 +165,17 @@ impl Repacketizer {
     ///
     ///This is the same as calling `create_packet((0, nb_frames), ...)`
     pub fn create_full_packet(&self, out: &mut [mem::MaybeUninit<u8>]) -> Result<usize, ErrorCode> {
-        let end = self.get_nb_frames();
-
         let out_len = match out.len().try_into() {
             Ok(out_len) => out_len,
             Err(_) => return Err(ErrorCode::bad_arg()),
         };
 
         let result = unsafe {
-            sys::opus_repacketizer_out_range(self.inner.as_pseudo_mut(), 0, end as _, out.as_mut_ptr() as _, out_len)
+            sys::opus_repacketizer_out(self.inner.as_pseudo_mut(), out.as_mut_ptr() as _, out_len)
         };
 
         map_sys_error!(result => result as _)
     }
 }
+
+unsafe impl Send for Repacketizer {}

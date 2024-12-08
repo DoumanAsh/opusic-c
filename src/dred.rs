@@ -31,7 +31,13 @@ impl DredPacket {
     }
 }
 
-///OPUS Decoder
+unsafe impl Send for DredPacket {}
+
+///OPUS DRED Decoder
+///
+///## Parameters
+///
+///`CH` - Number of channels to use
 pub struct Dred<const CH: u8> {
     inner: mem::Unique<sys::OpusDREDDecoder>,
     decoder: Decoder<CH>,
@@ -297,3 +303,5 @@ impl<const CH: u8> Dred<CH> {
         map_sys_error!(result => ())
     }
 }
+
+unsafe impl<const CH: u8> Send for Dred<CH> {}
