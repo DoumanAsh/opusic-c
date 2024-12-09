@@ -38,6 +38,7 @@ pub use decoder::*;
 #[cfg(feature = "dred")]
 pub mod dred;
 pub mod repacketizer;
+pub mod multistream;
 pub mod utils;
 
 ///Computes OPUS frame size in bytes for specified duration
