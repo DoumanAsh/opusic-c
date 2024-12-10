@@ -420,3 +420,29 @@ fn should_verify_multistream_encoder_building() {
     encoder.reset().expect("To reset");
 }
 
+#[test]
+fn should_verify_multistream_decoder_building() {
+    let config = multistream::Config::<2>::new(2, 0, [0, 1]);
+    let mut decoder = multistream::Decoder::new(config, SampleRate::Hz48000).expect("create new encoder");
+    let value = decoder.get_sample_rate().expect("get sample rate");
+    assert_eq!(value, SampleRate::Hz48000);
+
+    let value = decoder.get_last_packet_duration().expect("get default last packet duration");
+    assert_eq!(value, 0);
+
+    let value = decoder.get_bandwidth().expect("get default bandwidth");
+    assert_eq!(value, Bandwidth::Auto);
+
+    assert!(decoder.get_phase_inversion_disabled().expect("get phase inversion status"), "Phase inversion is OFF by default");
+    decoder.set_phase_inversion_disabled(false).expect("update phase inversion");
+    assert!(!decoder.get_phase_inversion_disabled().expect("get phase inversion status"), "Phase inversion is set to ON");
+
+    let value = decoder.get_gain().expect("get default gain");
+    assert_eq!(value, 0);
+
+    for value in -32768..=32767 {
+        decoder.set_gain(value).expect("set gain");
+        let result = decoder.get_gain().expect("get gain");
+        assert_eq!(result, value);
+    }
+}

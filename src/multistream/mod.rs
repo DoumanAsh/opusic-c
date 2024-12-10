@@ -14,6 +14,8 @@
 
 mod encoder;
 pub use encoder::Encoder;
+mod decoder;
+pub use decoder::Decoder;
 
 ///Multistream configuration
 ///
