@@ -47,6 +47,14 @@ impl<const CH: usize> Config<CH> {
             return None;
         }
 
+        let mut idx = 0;
+        while idx < CH {
+            if mapping[idx] != 255 && (mapping[idx] as usize) >= CH {
+                return None;
+            }
+            idx = idx.saturating_add(1);
+        }
+
         match streams.checked_add(coupled_streams) {
             Some(total) => if total == 0 || total > Self::CHANNELS {
                 None
@@ -71,6 +79,14 @@ impl<const CH: usize> Config<CH> {
     pub const fn new(streams: u8, coupled_streams: u8, mapping: [u8; CH]) -> Self {
         assert!(streams != 0);
         assert!(coupled_streams <= streams);
+
+        let mut idx = 0;
+        while idx < CH {
+            if mapping[idx] != 255 {
+                assert!((mapping[idx] as usize) < CH, "Non 255 mapping values must be in range 0..CH");
+            }
+            idx = idx.saturating_add(1);
+        }
 
         match streams.checked_add(coupled_streams) {
             Some(total_streams) => {
