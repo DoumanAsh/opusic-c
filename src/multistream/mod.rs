@@ -25,7 +25,6 @@ pub use decoder::Decoder;
 pub struct Config<const CH: usize> {
     streams: u8,
     coupled_streams: u8,
-    //TODO: add compile time checks for mapping value
     mapping: [u8; CH],
 }
 
