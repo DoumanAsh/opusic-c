@@ -5,27 +5,17 @@ use core::convert::TryInto;
 
 use mem::alloc::vec::Vec;
 
-#[repr(transparent)]
 ///OPUS Decoder
-///
-///## Parameters
-///
-///`CH` - Number of channels to use
-pub struct Decoder<const CH: u8> {
-    pub(crate) inner: mem::Unique<sys::OpusDecoder>
+pub struct Decoder {
+    pub(crate) inner: mem::Unique<sys::OpusDecoder>,
+    channels: Channels,
 }
 
-impl<const CH: u8> Decoder<CH> {
-    const CHANNELS: Channels = match CH {
-        1 => Channels::Mono,
-        2 => Channels::Stereo,
-        _ => panic!("Unsupported number of channels. Allowed range: 1..=2"),
-    };
-
+impl Decoder {
     ///Creates new decoder instance
-    pub fn new(rate: SampleRate) -> Result<Self, ErrorCode> {
+    pub fn new(channels: Channels, rate: SampleRate) -> Result<Self, ErrorCode> {
         let size = unsafe {
-            sys::opus_decoder_get_size(Self::CHANNELS as _)
+            sys::opus_decoder_get_size(channels as _)
         };
 
         if size == 0 {
@@ -35,15 +25,24 @@ impl<const CH: u8> Decoder<CH> {
         let mut decoder = match mem::Unique::new(size as _) {
             Some(inner) => Decoder {
                 inner,
+                channels,
             },
             None => return Err(ErrorCode::AllocFail)
         };
 
         let result = unsafe {
-            sys::opus_decoder_init(decoder.inner.as_mut(), rate as _, Self::CHANNELS as _)
+            sys::opus_decoder_init(decoder.inner.as_mut(), rate as _, channels as _)
         };
 
         map_sys_error!(result => decoder)
+    }
+
+    #[inline(always)]
+    ///Returns channels number
+    ///
+    ///When decoding, it is used to determine frame size as `output.len() / channels`
+    pub fn channels(&self) -> Channels {
+        self.channels
     }
 
     ///Decodes input packet, returning number of decoded samples.
@@ -74,7 +73,7 @@ impl<const CH: u8> Decoder<CH> {
         let result = unsafe {
             sys::opus_decode(self.inner.as_mut(),
                              input_ptr, input_len,
-                             output.as_mut_ptr() as _, (output.len() / CH as usize) as _,
+                             output.as_mut_ptr() as _, (output.len() / self.channels as usize) as _,
                              fec)
         };
 
@@ -139,7 +138,7 @@ impl<const CH: u8> Decoder<CH> {
         let result = unsafe {
             sys::opus_decode_float(self.inner.as_mut(),
                                    input_ptr, input_len,
-                                   output.as_mut_ptr() as _, (output.len() / CH as usize) as _,
+                                   output.as_mut_ptr() as _, (output.len() / self.channels as usize) as _,
                                    fec)
         };
 
@@ -322,4 +321,4 @@ impl<const CH: u8> Decoder<CH> {
     }
 }
 
-unsafe impl<const CH: u8> Send for Decoder<CH> {}
+unsafe impl Send for Decoder {}

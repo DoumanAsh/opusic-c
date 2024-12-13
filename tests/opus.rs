@@ -21,7 +21,7 @@ fn should_assert_crate_version() {
 
 #[test]
 fn should_verify_encoder_encoding_stereo() {
-    let mut encoder = Encoder::<{Channels::Stereo as _}>::new(SampleRate::Hz48000, Application::Audio).expect("Create");
+    let mut encoder = Encoder::new(Channels::Stereo, SampleRate::Hz48000, Application::Audio).expect("Create");
 
     const SIZE_20MS: usize = frame_bytes_size(SampleRate::Hz48000, Channels::Stereo, 20);
     let input = [0; SIZE_20MS];
@@ -30,7 +30,7 @@ fn should_verify_encoder_encoding_stereo() {
     let len = encoder.encode_to_slice(&input, &mut output).expect("to encode");
     assert_eq!(&output[..len], &[252, 255, 254]);
 
-    let mut decoder = Decoder::<{Channels::Stereo as _}>::new(SampleRate::Hz48000).expect("Create");
+    let mut decoder = Decoder::new(Channels::Stereo, SampleRate::Hz48000).expect("Create");
     let mut decoded = [0; SIZE_20MS];
 
     let decoded_len = decoder.decode_to_slice(&output[..len], &mut decoded, false).expect("to decode");
@@ -68,7 +68,7 @@ fn should_verify_encoder_encoding_stereo() {
 
 #[test]
 fn should_verify_encoder_encoding_mono() {
-    let mut encoder = Encoder::<{Channels::Mono as _}>::new(SampleRate::Hz48000, Application::Audio).expect("Create");
+    let mut encoder = Encoder::new(Channels::Mono, SampleRate::Hz48000, Application::Audio).expect("Create");
 
     const SIZE_20MS: usize = frame_bytes_size(SampleRate::Hz48000, Channels::Mono, 20);
     let input = [0; SIZE_20MS];
@@ -77,7 +77,7 @@ fn should_verify_encoder_encoding_mono() {
     let len = encoder.encode_to_slice(&input, &mut output).expect("to encode");
     assert_eq!(&output[..len], &[248, 255, 254]);
 
-    let mut decoder = Decoder::<{Channels::Mono as _}>::new(SampleRate::Hz48000).expect("Create");
+    let mut decoder = Decoder::new(Channels::Mono, SampleRate::Hz48000).expect("Create");
     let mut decoded = [0; SIZE_20MS];
 
     let len = decoder.decode_to_slice(&output[..len], &mut decoded, false).expect("to decode");
@@ -89,7 +89,7 @@ fn should_verify_encoder_encoding_mono() {
 
 #[test]
 fn should_verify_encoder_building() {
-    let mut encoder = Encoder::<{Channels::Stereo as _}>::new(SampleRate::Hz48000, Application::Audio).expect("Create");
+    let mut encoder = Encoder::new(Channels::Stereo, SampleRate::Hz48000, Application::Audio).expect("Create");
     let value = encoder.get_sample_rate().expect("get sample rate");
     assert_eq!(value, SampleRate::Hz48000);
 
@@ -228,7 +228,7 @@ fn should_verify_encoder_building() {
 
 #[test]
 fn should_verify_decoder_building() {
-    let mut decoder = Decoder::<{Channels::Stereo as _}>::new(SampleRate::Hz48000).expect("Create");
+    let mut decoder = Decoder::new(Channels::Stereo, SampleRate::Hz48000).expect("Create");
     let value = decoder.get_sample_rate().expect("get sample rate");
     assert_eq!(value, SampleRate::Hz48000);
 

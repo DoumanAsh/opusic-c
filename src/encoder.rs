@@ -2,27 +2,17 @@ use crate::{sys, mem, ErrorCode, Application, Channels, SampleRate, Bandwidth, B
 
 use mem::alloc::vec::Vec;
 
-#[repr(transparent)]
 ///OPUS encoder
-///
-///## Parameters
-///
-///`CH` - Number of channels to use
-pub struct Encoder<const CH: u8> {
-    inner: mem::Unique<sys::OpusEncoder>
+pub struct Encoder {
+    inner: mem::Unique<sys::OpusEncoder>,
+    channels: Channels,
 }
 
-impl<const CH: u8> Encoder<CH> {
-    const CHANNELS: Channels = match CH {
-        1 => Channels::Mono,
-        2 => Channels::Stereo,
-        _ => panic!("Unsupported number of channels. Allowed range: 1..=2"),
-    };
-
+impl Encoder {
     ///Creates new encoder instance
-    pub fn new(rate: SampleRate, app: Application) -> Result<Self, ErrorCode> {
+    pub fn new(channels: Channels, rate: SampleRate, app: Application) -> Result<Self, ErrorCode> {
         let size = unsafe {
-            sys::opus_encoder_get_size(Self::CHANNELS as _)
+            sys::opus_encoder_get_size(channels as _)
         };
 
         if size == 0 {
@@ -32,15 +22,24 @@ impl<const CH: u8> Encoder<CH> {
         let mut encoder = match mem::Unique::new(size as _) {
             Some(inner) => Encoder {
                 inner,
+                channels,
             },
             None => return Err(ErrorCode::AllocFail)
         };
 
         let result = unsafe {
-            sys::opus_encoder_init(encoder.inner.as_mut(), rate as _, Self::CHANNELS as _, app as _)
+            sys::opus_encoder_init(encoder.inner.as_mut(), rate as _, channels as _, app as _)
         };
 
         map_sys_error!(result => encoder)
+    }
+
+    #[inline(always)]
+    ///Returns channels number
+    ///
+    ///When encoding, it is used to determine frame size as `input.len() / channels`
+    pub fn channels(&self) -> Channels {
+        self.channels
     }
 
     ///Encodes an Opus frame, returning number of bytes written.
@@ -53,7 +52,7 @@ impl<const CH: u8> Encoder<CH> {
     pub fn encode_to(&mut self, input: &[u16], output: &mut [mem::MaybeUninit<u8>]) -> Result<usize, ErrorCode> {
         let result = unsafe {
             sys::opus_encode(self.inner.as_mut(),
-                             input.as_ptr() as _, (input.len() / (CH as usize)) as _,
+                             input.as_ptr() as _, (input.len() / (self.channels as usize)) as _,
                              output.as_mut_ptr() as _, output.len() as _)
         };
 
@@ -102,7 +101,7 @@ impl<const CH: u8> Encoder<CH> {
     pub fn encode_float_to(&mut self, input: &[f32], output: &mut [mem::MaybeUninit<u8>]) -> Result<usize, ErrorCode> {
         let result = unsafe {
             sys::opus_encode_float(self.inner.as_mut(),
-                                   input.as_ptr(), (input.len() / (CH as usize)) as _,
+                                   input.as_ptr(), (input.len() / (self.channels as usize)) as _,
                                    output.as_mut_ptr() as _, output.len() as _)
         };
 
@@ -651,4 +650,4 @@ impl<const CH: u8> Encoder<CH> {
     }
 }
 
-unsafe impl<const CH: u8> Send for Encoder<CH> {}
+unsafe impl Send for Encoder {}

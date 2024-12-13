@@ -34,19 +34,15 @@ impl DredPacket {
 unsafe impl Send for DredPacket {}
 
 ///OPUS DRED Decoder
-///
-///## Parameters
-///
-///`CH` - Number of channels to use
-pub struct Dred<const CH: u8> {
+pub struct Dred {
     inner: mem::Unique<sys::OpusDREDDecoder>,
-    decoder: Decoder<CH>,
+    decoder: Decoder,
     packet: DredPacket,
 }
 
-impl<const CH: u8> Dred<CH> {
+impl Dred {
     ///Creates new decoder instance
-    pub fn new(decoder: Decoder<CH>) -> Result<Self, ErrorCode> {
+    pub fn new(decoder: Decoder) -> Result<Self, ErrorCode> {
         let size = unsafe {
             sys::opus_dred_decoder_get_size()
         };
@@ -73,12 +69,12 @@ impl<const CH: u8> Dred<CH> {
     }
 
     ///Access underlying decoder
-    pub fn decoder(&mut self) -> &Decoder<CH> {
+    pub fn decoder(&mut self) -> &Decoder {
         &self.decoder
     }
 
     ///Access underlying decoder
-    pub fn decoder_mut(&mut self) -> &mut Decoder<CH> {
+    pub fn decoder_mut(&mut self) -> &mut Decoder {
         &mut self.decoder
     }
 
@@ -96,7 +92,7 @@ impl<const CH: u8> Dred<CH> {
         let input_ptr = input.as_ptr();
         let input_len = input.len() as _;
 
-        let frame_size = (output.len() / CH as usize) as _;
+        let frame_size = (output.len() / self.decoder.channels() as usize) as _;
 
         let result = unsafe {
             sys::opus_dred_parse(self.inner.as_mut(), self.packet.inner.as_mut(),
@@ -141,7 +137,7 @@ impl<const CH: u8> Dred<CH> {
         let input_ptr = input.as_ptr();
         let input_len = input.len() as _;
 
-        let frame_size = (output.len() / CH as usize) as _;
+        let frame_size = (output.len() / self.decoder.channels() as usize) as _;
 
         let result = unsafe {
             sys::opus_dred_parse(self.inner.as_mut(), self.packet.inner.as_mut(),
@@ -304,4 +300,4 @@ impl<const CH: u8> Dred<CH> {
     }
 }
 
-unsafe impl<const CH: u8> Send for Dred<CH> {}
+unsafe impl Send for Dred {}
