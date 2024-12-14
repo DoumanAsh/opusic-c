@@ -1,11 +1,13 @@
 use crate::{sys, mem, ErrorCode, Application, SampleRate, Bandwidth, Bitrate, Signal, InbandFec, FrameDuration};
 use super::Config;
 
-#[repr(transparent)]
+use mem::alloc::vec::Vec;
+
 ///OPUS multistream encoder
 ///
 pub struct Encoder {
-    inner: mem::Unique<sys::OpusMSEncoder>
+    inner: mem::Unique<sys::OpusMSEncoder>,
+    channels: u8,
 }
 
 impl Encoder {
@@ -39,6 +41,7 @@ impl Encoder {
         let mut encoder = match mem::Unique::new(size as _) {
             Some(inner) => Encoder {
                 inner,
+                channels: CH as _,
             },
             None => return Err(ErrorCode::AllocFail)
         };
@@ -58,6 +61,97 @@ impl Encoder {
         };
 
         map_sys_error!(result => ())
+    }
+
+    ///Encodes an Opus frame, returning number of bytes written.
+    ///
+    ///If more than 1 channel is configured, then input must be interleaved.
+    ///
+    ///Input size must correspond to sampling rate.
+    ///For example, at 48 kHz allowed frame sizes are 120, 240, 480, 960, 1920, and 2880.
+    ///Passing in a duration of less than 10 ms (480 samples at 48 kHz) will prevent the encoder from using the LPC or hybrid modes.
+    pub fn encode_to(&mut self, input: &[u16], output: &mut [mem::MaybeUninit<u8>]) -> Result<usize, ErrorCode> {
+        let result = unsafe {
+            sys::opus_multistream_encode(self.inner.as_mut(),
+                                         input.as_ptr() as _, (input.len() / (self.channels as usize)) as _,
+                                         output.as_mut_ptr() as _, output.len() as _)
+        };
+
+        map_sys_error!(result => result as _)
+    }
+
+    #[inline(always)]
+    ///Encodes an Opus frame, returning number of bytes written.
+    ///
+    ///Refer to `encode_to` for details
+    pub fn encode_to_slice(&mut self, input: &[u16], output: &mut [u8]) -> Result<usize, ErrorCode> {
+        self.encode_to(input, unsafe { mem::transmute(output) })
+    }
+
+    #[inline(always)]
+    ///Encodes an Opus frame, returning number of bytes written.
+    ///
+    ///Vector will be written into spare capacity, modifying its length on success.
+    ///
+    ///It is user responsibility to reserve correct amount of space
+    ///
+    ///Refer to `encode_to` for details
+    pub fn encode_to_vec(&mut self, input: &[u16], output: &mut Vec<u8>) -> Result<usize, ErrorCode> {
+        let initial_len = output.len();
+        let result = self.encode_to(input, output.spare_capacity_mut())?;
+        unsafe {
+            output.set_len(initial_len + result);
+        }
+        Ok(result)
+    }
+
+    ///Encodes an Opus frame, returning number of bytes written.
+    ///
+    ///If more than 1 channel is configured, then input must be interleaved.
+    ///
+    ///Input size must correspond to sampling rate.
+    ///For example, at 48 kHz allowed frame sizes are 120, 240, 480, 960, 1920, and 2880.
+    ///Passing in a duration of less than 10 ms (480 samples at 48 kHz) will prevent the encoder from using the LPC or hybrid modes.
+    ///
+    ///## Note
+    ///
+    ///When using float API, input with a normal range of +/-1.0 should be preferred.
+    ///Samples with a range beyond +/-1.0 are supported
+    ///but will be clipped by decoders using the integer API and should only be used
+    ///if it is known that the far end supports extended dynamic range
+    pub fn encode_float_to(&mut self, input: &[f32], output: &mut [mem::MaybeUninit<u8>]) -> Result<usize, ErrorCode> {
+        let result = unsafe {
+            sys::opus_multistream_encode_float(self.inner.as_mut(),
+                                               input.as_ptr(), (input.len() / (self.channels as usize)) as _,
+                                               output.as_mut_ptr() as _, output.len() as _)
+        };
+
+        map_sys_error!(result => result as _)
+    }
+
+    #[inline(always)]
+    ///Encodes an Opus frame, returning number of bytes written.
+    ///
+    ///Refer to `encode_to` for details
+    pub fn encode_float_to_slice(&mut self, input: &[f32], output: &mut [u8]) -> Result<usize, ErrorCode> {
+        self.encode_float_to(input, unsafe { mem::transmute(output) })
+    }
+
+    #[inline(always)]
+    ///Encodes an Opus frame, returning number of bytes written.
+    ///
+    ///Vector will be written into spare capacity, modifying its length on success.
+    ///
+    ///It is user responsibility to reserve correct amount of space
+    ///
+    ///Refer to `encode_to` for details
+    pub fn encode_float_to_vec(&mut self, input: &[f32], output: &mut Vec<u8>) -> Result<usize, ErrorCode> {
+        let initial_len = output.len();
+        let result = self.encode_float_to(input, output.spare_capacity_mut())?;
+        unsafe {
+            output.set_len(initial_len + result);
+        }
+        Ok(result)
     }
 
     #[inline]

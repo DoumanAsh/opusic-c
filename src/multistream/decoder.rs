@@ -1,11 +1,15 @@
 use crate::{sys, mem, ErrorCode, SampleRate, Bandwidth};
 use super::Config;
 
-#[repr(transparent)]
+use core::ptr;
+
+use mem::alloc::vec::Vec;
+
 ///OPUS multistream decoder
 ///
 pub struct Decoder {
-    inner: mem::Unique<sys::OpusMSDecoder>
+    inner: mem::Unique<sys::OpusMSDecoder>,
+    channels: u8,
 }
 
 impl Decoder {
@@ -39,6 +43,7 @@ impl Decoder {
         let mut decoder = match mem::Unique::new(size as _) {
             Some(inner) => Self {
                 inner,
+                channels: CH as _,
             },
             None => return Err(ErrorCode::AllocFail)
         };
@@ -58,6 +63,136 @@ impl Decoder {
         };
 
         map_sys_error!(result => ())
+    }
+
+    ///Decodes input packet, returning number of decoded samples.
+    ///
+    ///If more than 1 channel is configured, then input must be interleaved.
+    ///
+    ///Output size must correspond to sampling rate.
+    ///For example, at 48 kHz allowed frame sizes are 120, 240, 480, 960, 1920, and 2880.
+    ///
+    ///Maximum packet duration is 120ms therefore maximum `frame size` must be
+    ///`frame_bytes_size(SampleRate::Hz48000, Channels::Stereo, 120)`
+    ///
+    ///When `input` size is 0, libopus shall treat it as packet loss, in which case `output` size must
+    ///match expected output of next packet to know how much frames is skipped
+    ///
+    ///When `decode_fec` is `true`, requests that any in-band forward error correction data be decoded.
+    ///If no such data is available, the frame is decoded as if it were lost.
+    pub fn decode_to(&mut self, input: &[u8], output: &mut [mem::MaybeUninit<u16>], decode_fec: bool) -> Result<usize, ErrorCode> {
+        let (input_ptr, input_len) = match input.len() {
+            0 => (ptr::null(), 0),
+            len => (input.as_ptr(), len as _)
+        };
+
+        let fec = match decode_fec {
+            true => 1,
+            false => 0,
+        };
+        let result = unsafe {
+            sys::opus_multistream_decode(self.inner.as_mut(),
+                                         input_ptr, input_len,
+                                         output.as_mut_ptr() as _, (output.len() / self.channels as usize) as _,
+                                         fec)
+        };
+
+        map_sys_error!(result => result as _)
+    }
+
+    #[inline(always)]
+    ///Decodes input packet, returning number of decoded samples.
+    ///
+    ///Refer to `decode_to` for details
+    pub fn decode_to_slice(&mut self, input: &[u8], output: &mut [u16], decode_fec: bool) -> Result<usize, ErrorCode> {
+        self.decode_to(input, unsafe { mem::transmute(output) }, decode_fec)
+    }
+
+    #[inline(always)]
+    ///Decodes input packet, returning number of decoded samples.
+    ///
+    ///Vector will be written into spare capacity, modifying its length on success.
+    ///
+    ///`decode_len` is used to reserve additional memory and will be passed exactly with this size to `decode_to`
+    ///
+    ///Refer to `decode_to` for details
+    pub fn decode_to_vec(&mut self, input: &[u8], output: &mut Vec<u16>, decode_len: usize, decode_fec: bool) -> Result<usize, ErrorCode> {
+        let initial_len = output.len();
+
+        if output.try_reserve(decode_len).is_err() {
+            return Err(ErrorCode::alloc_fail())
+        }
+
+        let result = self.decode_to(input, &mut output.spare_capacity_mut()[..decode_len], decode_fec)?;
+        unsafe {
+            output.set_len(initial_len + result);
+        }
+        Ok(result)
+    }
+
+    ///Decodes input packet, returning number of decoded samples.
+    ///
+    ///If more than 1 channel is configured, then input must be interleaved.
+    ///
+    ///Output size must correspond to sampling rate.
+    ///For example, at 48 kHz allowed frame sizes are 120, 240, 480, 960, 1920, and 2880.
+    ///
+    ///Maximum packet duration is 120ms therefore maximum `frame size` must be
+    ///`frame_bytes_size(SampleRate::Hz48000, Channels::Stereo, 120)`
+    ///
+    ///When `input` size is 0, libopus shall treat it as packet loss, in which case `output` size must
+    ///match expected output of next packet to know how much frames is skipped
+    ///
+    ///When `decode_fec` is `true`, requests that any in-band forward error correction data be decoded.
+    ///If no such data is available, the frame is decoded as if it were lost.
+    pub fn decode_float_to(&mut self, input: &[u8], output: &mut [mem::MaybeUninit<f32>], decode_fec: bool) -> Result<usize, ErrorCode> {
+        let (input_ptr, input_len) = match input.len() {
+            0 => (ptr::null(), 0),
+            len => (input.as_ptr(), len as _)
+        };
+        let fec = match decode_fec {
+            true => 1,
+            false => 0,
+        };
+
+        let result = unsafe {
+            sys::opus_multistream_decode_float(self.inner.as_mut(),
+                                               input_ptr, input_len,
+                                               output.as_mut_ptr() as _, (output.len() / self.channels as usize) as _,
+                                               fec)
+        };
+
+        map_sys_error!(result => result as _)
+    }
+
+    #[inline(always)]
+    ///Decodes input packet, returning number of decoded samples.
+    ///
+    ///Refer to `decode_to` for details
+    pub fn decode_float_to_slice(&mut self, input: &[u8], output: &mut [f32], decode_fec: bool) -> Result<usize, ErrorCode> {
+        self.decode_float_to(input, unsafe { mem::transmute(output) }, decode_fec)
+    }
+
+    #[inline(always)]
+    ///Decodes input packet, returning number of decoded samples.
+    ///
+    ///Vector will be written into spare capacity, modifying its length on success.
+    ///
+    ///`decode_len` is used to reserve additional memory and will be passed exactly with this size to `decode_to`
+    ///
+    ///Refer to `decode_to` for details
+    pub fn decode_float_to_vec(&mut self, input: &[u8], output: &mut Vec<f32>, decode_len: usize, decode_fec: bool) -> Result<usize, ErrorCode> {
+        let initial_len = output.len();
+
+        if output.try_reserve(decode_len).is_err() {
+            return Err(ErrorCode::alloc_fail())
+        }
+
+        let result = self.decode_float_to(input, &mut output.spare_capacity_mut()[..decode_len], decode_fec)?;
+        unsafe {
+            output.set_len(initial_len + result);
+        }
+        Ok(result)
     }
 
     #[inline]

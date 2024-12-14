@@ -446,3 +446,59 @@ fn should_verify_multistream_decoder_building() {
         assert_eq!(result, value);
     }
 }
+
+#[test]
+fn should_verify_multistream_encoding_single() {
+    let config = multistream::Config::<1>::new(1, 0, [0]);
+    let mut encoder = multistream::Encoder::new(config, SampleRate::Hz48000, Application::Audio).expect("create new encoder");
+
+    const SIZE_20MS: usize = frame_bytes_size(SampleRate::Hz48000, Channels::Mono, 20);
+    let input = [0; SIZE_20MS];
+    let mut output = [0; 256];
+
+    let len = encoder.encode_to_slice(&input, &mut output).expect("to encode");
+    assert_eq!(&output[..len], &[248, 255, 254]);
+
+    let mut decoder = Decoder::new(Channels::Mono, SampleRate::Hz48000).expect("Create");
+    let mut decoded = [0; SIZE_20MS];
+
+    let len = decoder.decode_to_slice(&output[..len], &mut decoded, false).expect("to decode");
+    assert_eq!(len, SIZE_20MS);
+    assert_eq!(decoded, input);
+
+    decoder.reset().expect("reset");
+}
+
+#[test]
+fn should_verify_multistream_encoding_multi() {
+    let config = multistream::Config::<2>::new(2, 0, [0, 1]);
+    let mut encoder = multistream::Encoder::new(config, SampleRate::Hz48000, Application::Audio).expect("create new encoder");
+
+    const SIZE_20MS: usize = frame_bytes_size(SampleRate::Hz48000, Channels::Stereo, 20);
+    let input = [0; SIZE_20MS];
+    let mut output = [0; 256];
+
+    let len = encoder.encode_to_slice(&input, &mut output).expect("to encode");
+    assert_eq!(&output[..len], &[248, 2, 255, 254, 248, 255, 254]);
+
+    let mut decoder = Decoder::new(Channels::Stereo, SampleRate::Hz48000).expect("Create");
+    let mut decoded = [0; SIZE_20MS];
+
+    let decoded_len = decoder.decode_to_slice(&output[..len], &mut decoded, false).expect("to decode");
+    assert_eq!(decoded_len, SIZE_20MS / 2);
+
+    let mut vec_output = Vec::with_capacity(256);
+    encoder.reset().expect("reset");
+    encoder.encode_to_vec(&input, &mut vec_output).expect("to encode");
+    assert_eq!(vec_output, &[248, 2, 255, 254, 248, 255, 254]);
+
+    let mut vec_decoded = Vec::with_capacity(SIZE_20MS);
+    decoder.reset().expect("to reset");
+    let decoded_len = decoder.decode_to_vec(&vec_output, &mut vec_decoded, SIZE_20MS, false).expect("to decode");
+    assert_eq!(decoded_len, vec_decoded.len());
+    assert_eq!(vec_decoded, decoded[..SIZE_20MS / 2]);
+
+    encoder.reset().expect("reset");
+    encoder.encode_to_vec(&input, &mut vec_output).expect("to encode");
+    assert_eq!(vec_output, &[248, 2, 255, 254, 248, 255, 254, 248, 2, 255, 254, 248, 255, 254]);
+}
