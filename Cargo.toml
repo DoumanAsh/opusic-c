@@ -1,6 +1,6 @@
 [package]
 name = "opusic-c"
-version = "1.5.2-beta.6"
+version = "1.5.2-beta.7"
 authors = ["Douman <douman@gmx.se>"]
 description = "High level bindings to libopus"
 readme = "README.md"
@@ -11,7 +11,7 @@ keywords = ["libopus", "opus", "codec"]
 categories = ["encoding", "external-ffi-bindings", "multimedia::audio", "multimedia::encoding"]
 
 [dependencies.opusic-sys]
-version = "=0.5.4"
+version = "0.5.5"
 default-features = false
 
 [features]
