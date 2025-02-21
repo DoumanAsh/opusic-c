@@ -14,6 +14,7 @@
 #![warn(missing_docs)]
 #![allow(clippy::style)]
 #![allow(clippy::missing_transmute_annotations)]
+#![allow(clippy::needless_lifetimes)]
 
 use core::{slice, str};
 

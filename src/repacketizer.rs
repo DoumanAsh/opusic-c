@@ -1,6 +1,7 @@
 //! Opus packet manipulation
 use crate::{sys, mem, ErrorCode};
 
+use core::marker;
 use core::convert::TryInto;
 
 ///Pads a given Opus packet to a larger size (possibly changing the TOC sequence).
@@ -43,16 +44,6 @@ pub fn unpad_packet(input: &mut [u8]) -> Result<usize, ErrorCode> {
     map_sys_error!(result => result as usize)
 }
 
-#[must_use]
-#[derive(Debug)]
-#[repr(transparent)]
-///Currently being processed packet
-///
-///User must ensure that all packets are accessible until `Repacketizer` is no longer in use or `reset`
-///
-///Dropping this guard without ensuring `Repacketizer` is reset, leaves opportunity for undefined behavior
-pub struct PacketHolder<'a>(pub &'a [u8]);
-
 #[repr(transparent)]
 ///Repacketizer can be used to merge multiple Opus packets into a single packet or alternatively to split Opus packets that have previously been merged
 pub struct Repacketizer {
@@ -83,7 +74,7 @@ impl Repacketizer {
     }
 
     #[inline(always)]
-    ///Re-initializes this instance, resetting any ongoing progress, if any.
+    ///Re-initializes this Repacketizer state, resetting ongoing progress, if any.
     pub fn reset(&mut self) {
         unsafe {
             sys::opus_repacketizer_init(self.inner.as_mut());
@@ -91,11 +82,65 @@ impl Repacketizer {
     }
 
     #[inline(always)]
+    ///Starts new repacketizer process, resetting `self` in the process.
+    pub fn start<'a, 'buf>(&'a mut self) -> OngoingRepacketizer<'a, 'buf> {
+        OngoingRepacketizer {
+            inner: self,
+            _buf_lifetime: marker::PhantomData
+        }
+    }
+
+    ///Takes all `bufs` combining it into single packet
+    ///
+    ///This is shortcut to using [start](struct.Repacketizer.html#method.start).
+    pub fn combine_all(&mut self, bufs: &[&[u8]], out: &mut [mem::MaybeUninit<u8>]) -> Result<usize, ErrorCode> {
+        let mut state = self.start();
+        for buf in bufs {
+            state.add_packet(buf)?;
+        }
+        state.create_full_packet(out)
+    }
+}
+
+unsafe impl Send for Repacketizer {}
+
+#[repr(transparent)]
+///Ongoing repacketizer process
+///
+///Lifetime parameters:
+///
+///- `a` - Depends on original instance of [Repacketizer](struct.Repacketizer.html)
+///- `buf` - Lifetime of the last buffer added to the state. Note that all previous lifetimes must fit it too
+///
+///Dropping state will reset [Repacketizer](struct.Repacketizer.html)
+pub struct OngoingRepacketizer<'a, 'buf> {
+    inner: &'a mut Repacketizer,
+    _buf_lifetime: marker::PhantomData<&'buf [u8]>
+}
+
+impl<'a, 'buf> OngoingRepacketizer<'a, 'buf> {
+    #[inline(always)]
+    fn as_state(&self) -> &mem::Unique<sys::OpusRepacketizer> {
+        &self.inner.inner
+    }
+
+    #[inline(always)]
+    fn as_state_mut(&mut self) -> &mut mem::Unique<sys::OpusRepacketizer> {
+        &mut self.inner.inner
+    }
+
+    #[inline(always)]
+    ///Re-initializes this Repacketizer state, resetting ongoing progress, if any.
+    pub fn reset(&mut self) {
+        self.inner.reset();
+    }
+
+    #[inline(always)]
     ///Return the total number of frames contained in packet data submitted to the repacketizer state
     ///since the last time `reset` has been called
     pub fn get_nb_frames(&self) -> u32 {
         unsafe {
-            sys::opus_repacketizer_get_nb_frames(self.inner.as_pseudo_mut()) as _
+            sys::opus_repacketizer_get_nb_frames(self.as_state().as_pseudo_mut()) as _
         }
     }
 
@@ -115,7 +160,7 @@ impl Repacketizer {
     ///contains multiple frames, some of which might fit. If you wish to be able to add parts of
     ///such packets, you should first use another repacketizer to split the packet into pieces and
     ///add them individually.
-    pub fn add_packet<'a>(&mut self, input: &'a [u8]) -> Result<PacketHolder<'a>, ErrorCode> {
+    pub fn add_packet(&mut self, input: &'buf [u8]) -> Result<(), ErrorCode> {
         let len = match input.len().try_into() {
             Ok(data_len) => data_len,
             Err(_) => return Err(ErrorCode::bad_arg()),
@@ -123,10 +168,20 @@ impl Repacketizer {
         let data = input.as_ptr();
 
         let result = unsafe {
-            sys::opus_repacketizer_cat(self.inner.as_mut(), data, len)
+            sys::opus_repacketizer_cat(self.as_state_mut().as_mut(), data, len)
         };
 
-        map_sys_error!(result => PacketHolder(input))
+        map_sys_error!(result => ())
+    }
+
+    #[inline(always)]
+    ///Adds packet to the ongoing state, returning `Self` with modified lifetime
+    ///
+    ///Refers to [add_packet](struct.OngoingRepacketizer.html#method.add_packet) for details
+    pub fn with_packet<'new_buf>(self, input: &'new_buf [u8]) -> Result<OngoingRepacketizer<'a, 'new_buf>, ErrorCode> where 'buf: 'new_buf {
+        let mut new = self;
+        new.add_packet(input)?;
+        Ok(new)
     }
 
     ///Construct a new packet from data previously submitted to the repacketizer state
@@ -155,15 +210,14 @@ impl Repacketizer {
         };
 
         let result = unsafe {
-            sys::opus_repacketizer_out_range(self.inner.as_pseudo_mut(), begin, end, out.as_mut_ptr() as _, out_len)
+            sys::opus_repacketizer_out_range(self.as_state().as_pseudo_mut(), begin, end, out.as_mut_ptr() as _, out_len)
         };
 
         map_sys_error!(result => result as _)
     }
 
     #[inline(always)]
-    ///Construct a new packet from data previously submitted to the repacketizer state using all
-    ///frames available
+    ///Construct a new packet from data previously submitted to the repacketizer state using all frames available
     ///
     ///This is the same as calling `create_packet((0, nb_frames), ...)`
     pub fn create_full_packet(&self, out: &mut [mem::MaybeUninit<u8>]) -> Result<usize, ErrorCode> {
@@ -173,11 +227,16 @@ impl Repacketizer {
         };
 
         let result = unsafe {
-            sys::opus_repacketizer_out(self.inner.as_pseudo_mut(), out.as_mut_ptr() as _, out_len)
+            sys::opus_repacketizer_out(self.as_state().as_pseudo_mut(), out.as_mut_ptr() as _, out_len)
         };
 
         map_sys_error!(result => result as _)
     }
 }
 
-unsafe impl Send for Repacketizer {}
+impl<'a, 'buf> Drop for OngoingRepacketizer<'a, 'buf> {
+    #[inline(always)]
+    fn drop(&mut self) {
+        self.inner.reset();
+    }
+}

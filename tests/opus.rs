@@ -261,45 +261,55 @@ fn should_fail_to_repacketizer() {
 
     let mut repacketizer = repacketizer::Repacketizer::new().expect("create repacketizer");
 
-    assert_eq!(repacketizer.get_nb_frames(), 0);
+    let mut state = repacketizer.start();
+    assert_eq!(state.get_nb_frames(), 0);
 
     //no buffer = fail
-    let mut error = repacketizer.add_packet(&[]).expect_err("should fail empty packet");
+    let mut error = state.add_packet(&[]).expect_err("should fail empty packet");
     assert_eq!(error, ErrorCode::InvalidPacket);
 
     //packet with zero len but invalid actual size
-    error = repacketizer.add_packet(&packet).expect_err("should fail empty packet");
+    drop(state);
+    state = repacketizer.start();
+    error = state.add_packet(&packet).expect_err("should fail empty packet");
     assert_eq!(error, ErrorCode::InvalidPacket);
 
     //odd op code
+    drop(state);
+    state = repacketizer.start();
     packet[0] = 1;
-    error = repacketizer.add_packet(&packet[..2]).expect_err("should fail empty packet");
+    error = state.add_packet(&packet[..2]).expect_err("should fail empty packet");
     assert_eq!(error, ErrorCode::InvalidPacket);
 
     //overflow
+    drop(state);
+    state = repacketizer.start();
     packet[0] = 2;
-    error = repacketizer.add_packet(&packet[..1]).expect_err("should fail empty packet");
+    error = state.add_packet(&packet[..1]).expect_err("should fail empty packet");
     assert_eq!(error, ErrorCode::InvalidPacket);
 
     //no count
+    drop(state);
+    state = repacketizer.start();
     packet[0] = 3;
-    error = repacketizer.add_packet(&packet[..1]).expect_err("should fail empty packet");
+    error = state.add_packet(&packet[..1]).expect_err("should fail empty packet");
     assert_eq!(error, ErrorCode::InvalidPacket);
 
     //ok empty packet
+    drop(state);
+    state = repacketizer.start();
+
     packet[0] = 0;
-    let packet_holder1 = repacketizer.add_packet(&packet[..3]).expect("should successfully add packet with zero len");
-    assert_eq!(packet_holder1.0.len(), 3);
+    state.add_packet(&packet[..3]).expect("should successfully add packet with zero len");
 
     //TOC change error detected
-    packet[0] = 1 << 2;
-    error = repacketizer.add_packet(&packet[..3]).expect_err("should fail empty packet");
+    error = state.add_packet(&[1 << 2, 0, 0]).expect_err("should fail with change of TOC");
     assert_eq!(error, ErrorCode::InvalidPacket);
 
-    repacketizer.reset();
+    drop(state);
+    state = repacketizer.start();
     //Reset allows new TOC
-    let packet_holder1 = repacketizer.add_packet(&packet[..3]).expect("should successfully add packet with zero len");
-    assert_eq!(packet_holder1.0.len(), 3);
+    state.add_packet(&packet[..3]).expect("should successfully add packet with zero len");
 }
 
 #[test]
