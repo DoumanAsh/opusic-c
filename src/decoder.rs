@@ -260,14 +260,11 @@ impl Decoder {
 
     #[cfg(feature = "dred")]
     #[inline]
-    ///Configures computational complexity of the decoder.
+    ///Configures the decoder's computational complexity.
     ///
-    ///Supported values are from 0 to 10, 10 meaning highest complexity.
+    ///The supported range is 0-10 inclusive with 10 representing the highest complexity.
     ///Values of 5 or above will use deep packet loss concealment.
     pub fn set_complexity(&mut self, value: u8) -> Result<(), ErrorCode> {
-        if value > 10 {
-            return Err(ErrorCode::bad_arg());
-        }
         let result = unsafe {
             sys::opus_decoder_ctl(
                 self.inner.as_mut(),
