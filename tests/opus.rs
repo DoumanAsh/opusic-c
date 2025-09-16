@@ -269,31 +269,31 @@ fn should_verify_decoder_complexity() {
 fn should_produce_different_artifacts_on_packet_loss() {
     const SIZE_20MS: usize = frame_bytes_size(SampleRate::Hz48000, Channels::Stereo, 20);
 
-    // Helper to prime a decoder and get the concealed audio from a subsequent packet loss.
+    //Helper to prime a decoder and get the concealed audio from a subsequent packet loss.
     fn get_concealed_audio(complexity: u8, packet: &[u8]) -> Vec<u16> {
         let mut decoder = Decoder::new(Channels::Stereo, SampleRate::Hz48000).expect("Failed to create decoder");
         decoder.set_complexity(complexity).expect("Failed to set complexity");
 
         let mut buffer = [0u16; SIZE_20MS];
-        // Prime the decoder with one real frame.
+        //Prime the decoder with one real frame.
         decoder.decode_to_slice(packet, &mut buffer, false).expect("Failed to decode initial packet");
-        // Get the concealed audio from a lost frame.
+        //Get the concealed audio from a lost frame.
         let len = decoder.decode_to_slice(&[], &mut buffer, false).expect("Failed to decode lost packet");
         buffer[..len].to_vec()
     }
 
-    // 1. Create a non-silent audio frame to encode.
+    //Create a non-silent audio frame to encode.
     let mut encoder = Encoder::new(Channels::Stereo, SampleRate::Hz48000, Application::Audio).expect("Failed to create encoder");
     let input = [123u16; SIZE_20MS];
     let mut packet_buffer = [0u8; 256];
     let packet_len = encoder.encode_to_slice(&input, &mut packet_buffer).expect("Failed to encode");
     let packet = &packet_buffer[..packet_len];
 
-    // 2. Get concealed audio for different complexities.
+    //Get concealed audio for different complexities.
     let concealed_c0 = get_concealed_audio(0, packet);
     let concealed_c10 = get_concealed_audio(10, packet);
 
-    // 3. Assert the outputs are different.
+    //Assert the outputs are different.
     assert_eq!(concealed_c0.len(), concealed_c10.len());
     assert_ne!(concealed_c0, concealed_c10, "Concealed audio should differ by complexity");
 }
