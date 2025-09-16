@@ -258,6 +258,39 @@ impl Decoder {
         map_sys_error!(result => ())
     }
 
+    #[cfg(feature = "dred")]
+    #[inline]
+    ///Configures computational complexity of the decoder.
+    ///
+    ///Supported values are from 0 to 10, 10 meaning highest complexity.
+    ///Values of 5 or above will use deep packet loss concealment.
+    pub fn set_complexity(&mut self, value: u8) -> Result<(), ErrorCode> {
+        if value > 10 {
+            return Err(ErrorCode::bad_arg());
+        }
+        let result = unsafe {
+            sys::opus_decoder_ctl(
+                self.inner.as_mut(),
+                sys::OPUS_SET_COMPLEXITY_REQUEST,
+                value as i32,
+            )
+        };
+
+        map_sys_error!(result => ())
+    }
+
+    #[cfg(feature = "dred")]
+    #[inline]
+    ///Gets the decoder's complexity configuration.
+    pub fn get_complexity(&mut self) -> Result<u8, ErrorCode> {
+        let mut value: i32 = 0;
+        let result = unsafe {
+            sys::opus_decoder_ctl(self.inner.as_mut(), sys::OPUS_GET_COMPLEXITY_REQUEST, &mut value)
+        };
+
+        map_sys_error!(result => value as u8)
+    }
+
     #[inline]
     ///Gets the decoder's last bandpass
     pub fn get_bandwidth(&mut self) -> Result<Bandwidth, ErrorCode> {
