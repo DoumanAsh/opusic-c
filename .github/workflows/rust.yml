@@ -22,10 +22,13 @@ on:
       - 'valgrind.supp'
 jobs:
   check:
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
     if: github.event.pull_request.draft == false
     uses: DoumanAsh/douman-ci/.github/workflows/rust.yml@master
     with:
-      os-matrix: '["macos-latest", "windows-latest", "ubuntu-latest"]'
+      runs-on: ${{ matrix.os }}
       min-rustc-version: "1.82.0"
       valgrind: true
       valgrind_flags: "--suppressions=valgrind.supp"
