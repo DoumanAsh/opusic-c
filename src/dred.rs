@@ -1,4 +1,31 @@
 //! DRED decoder
+//!
+//! Deep Audio Redundancy relies on encoder to embed historic speech data within OPUS packet's
+//! padding to provide extra data for DRED decoder to re-construct speech in case of data loss.
+//! Therefore this decoder is only useful when you rely on unreliable transport protocol like UDP
+//! (common for VOIP applications).
+//! There is no benefit in using it when you do not expect packet loss (e.g. working with reliable
+//! transport protocols like TCP)
+//!
+//! ## Encoder configuration
+//!
+//! In order to enable encoder to embed redundancy data you must specify following configuration:
+//! - [set_dred_duration](../struct.Encoder.html#method.set_dred_duration) - specify number of 10ms
+//! frames to embed within OPUS packets from the past
+//!
+//! Following options should be considered:
+//! - [set_inband_fec](../struct.Encoder.html#method.set_inband_fec) - should not be any value
+//! other than `InbandFec::Off` as it is OPUS's default error correction mechanism which would be
+//! of no use when DRED is used
+//! - [Application::Voip](../enum.Application.html#variant.Voip) - might be a desirable setting for
+//! encoder to ensure speech quality is given priority
+//!
+//! ## Decoder configuration
+//!
+//! There is no special configuration is necessary, but you must use special wrapper over standard
+//! [Decoder](../struct.Decoder.html) provided by this module: [Dred](struct.Dred.html) in order
+//! to decode data as regular decoder will not be able to make use of DRED data within frames
+
 use crate::{sys, mem, Decoder, ErrorCode, SampleRate, Bandwidth};
 
 use core::num;
