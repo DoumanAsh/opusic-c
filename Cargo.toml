@@ -1,6 +1,6 @@
 [package]
 name = "opusic-c"
-version = "1.5.3"
+version = "1.5.4"
 authors = ["Douman <douman@gmx.se>"]
 description = "High level bindings to libopus"
 readme = "README.md"
@@ -11,12 +11,18 @@ keywords = ["libopus", "opus", "codec"]
 categories = ["encoding", "external-ffi-bindings", "multimedia::audio", "multimedia::encoding"]
 
 [dependencies.opusic-sys]
-version = "0.5.5"
+version = "0.5.8"
 default-features = false
 
 [features]
+default = ["bundled"]
 # Enables DRED feature
 dred = ["opusic-sys/dred"]
+osce = ["opusic-sys/osce"]
+no-hardening = ["opusic-sys/no-hardening"]
+no-stack-protector = ["opusic-sys/no-stack-protector"]
+no-fortify-source = ["opusic-sys/no-fortify-source"]
+bundled = ["opusic-sys/bundled"]
 
 [package.metadata.docs.rs]
 features = ["dred"]

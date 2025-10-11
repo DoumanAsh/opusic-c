@@ -14,7 +14,12 @@ This library uses Rust's allocator whenever possible
 
 ## Features
 
-- `dred` - Enables experimental DRED decoder
+- `bundled` - Enables use of bundled OPUS code to build static library. Enabled by default. Refer to [opusic-sys](https://github.com/DoumanAsh/opusic-sys) for details
+- `dred` - Enables experimental DRED decoder. Disabled by default.
+- `osce` - Enables OSCE. Disabled by default.
+- `no-hardening` - disable run-time checks that are cheap and safe for use in production. Disabled by default.
+- `no-stack-protector` = disable stack protection. Disabled by default.
+- `no-fortify-source` - disable protection against buffer overflows. Disabled by default.
 
 ## Setup
 
