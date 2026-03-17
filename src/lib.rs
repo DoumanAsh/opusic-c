@@ -14,6 +14,7 @@
 //!- `no-hardening` - disable run-time checks that are cheap and safe for use in production. Disabled by default.
 //!- `no-stack-protector` = disable stack protection. Disabled by default.
 //!- `no-fortify-source` - disable protection against buffer overflows. Disabled by default.
+//!- `no-simd` - disable SIMD optimizations
 //!
 
 #![no_std]

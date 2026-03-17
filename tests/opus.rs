@@ -16,7 +16,10 @@ fn should_verify_frame_size_utils() {
 }
 #[test]
 fn should_assert_crate_version() {
+    #[cfg(not(feature = "fixed-point"))]
     assert_eq!(version(), "libopus 1.5.2");
+    #[cfg(feature = "fixed-point")]
+    assert_eq!(version(), "libopus 1.5.2-fixed");
 }
 
 #[test]
