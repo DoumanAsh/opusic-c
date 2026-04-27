@@ -17,9 +17,9 @@ fn should_verify_frame_size_utils() {
 #[test]
 fn should_assert_crate_version() {
     #[cfg(not(feature = "fixed-point"))]
-    assert_eq!(version(), "libopus 1.5.2");
+    assert_eq!(version(), "libopus 1.6.1");
     #[cfg(feature = "fixed-point")]
-    assert_eq!(version(), "libopus 1.5.2-fixed");
+    assert_eq!(version(), "libopus 1.6.1-fixed");
 }
 
 #[test]
@@ -139,7 +139,7 @@ fn should_verify_encoder_building() {
 
     encoder.set_bitrate(Bitrate::Max).expect("set bitrate");
     let value = encoder.get_bitrate().expect("get_bitrate");
-    assert_eq!(value, Bitrate::Value(4083200));
+    assert_eq!(value, Bitrate::Value(1500000));
 
     let value = encoder.get_vbr().expect("get default VBR");
     assert!(value, "Default VBR is ON");

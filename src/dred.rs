@@ -31,7 +31,7 @@ use crate::{sys, mem, Decoder, ErrorCode, SampleRate, Bandwidth};
 use core::num;
 
 ///Opus DRED packet size (used to alloc memory)
-pub const DRED_PACKET_SIZE: usize = 10592;
+pub const DRED_PACKET_SIZE: usize = 11236;
 
 ///Retrieves OPUS DRED packet size as per libopus requirements
 pub fn dred_packet_size() -> usize {
